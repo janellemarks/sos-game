@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SOS Game</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <section class="hero">
+      <div>
+        <h1>SOS Game</h1>
+        <p>Play against the computer, on the same device, or invite a friend with a shared link.</p>
+      </div>
+      <div class="status-card">
+        <strong id="connectionStatus">Firebase ready</strong>
+        <span id="roomInfo">No room joined yet</span>
+      </div>
+    </section>
+
+    <section class="layout">
+      <aside class="panel">
+        <h2>Game setup</h2>
+
+        <label>
+          Mode
+          <select id="modeSelect">
+            <option value="ai">Play vs AI</option>
+            <option value="local">Two players same device</option>
+            <option value="online">Online shared link</option>
+          </select>
+        </label>
+
+        <label>
+          Board size
+          <input id="boardSizeInput" type="number" value="12" min="3" max="30" />
+        </label>
+
+        <div class="letter-row">
+          <button id="chooseS" class="active" type="button">S</button>
+          <button id="chooseO" type="button">O</button>
+        </div>
+
+        <button id="newGameButton" type="button">New Game</button>
+        <button id="createRoomButton" type="button">Create online game link</button>
+        <button id="copyLinkButton" type="button">Copy current link</button>
+
+        <div class="message" id="messageBox">Choose S or O, then click a square.</div>
+
+        <div class="scores">
+          <div>
+            <span>Player 1</span>
+            <strong id="scoreP1">0</strong>
+          </div>
+          <div>
+            <span id="player2Label">AI</span>
+            <strong id="scoreP2">0</strong>
+          </div>
+        </div>
+
+        <div class="turn">
+          <span>Current turn</span>
+          <strong id="turnLabel">Player 1</strong>
+        </div>
+
+        <div class="share-box" id="shareBox" hidden>
+          <span>Share this link:</span>
+          <a id="shareLink" href="#" target="_blank" rel="noreferrer"></a>
+        </div>
+      </aside>
+
+      <section class="board-card">
+        <div class="board-header">
+          <h2 id="boardTitle">Board: 12 × 12</h2>
+          <p>Complete S-O-S horizontally, vertically, or diagonally to score.</p>
+        </div>
+        <div class="board-wrap">
+          <div id="board" class="board"></div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>

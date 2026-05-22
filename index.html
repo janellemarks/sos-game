@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SOS Game</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <section id="setupScreen" class="card setup-card">
+      <h1>SOS Game</h1>
+      <p class="muted">Create a game link, play against AI, or play on the same device.</p>
+
+      <label for="mode">Game mode</label>
+      <select id="mode">
+        <option value="online">Online shared link</option>
+        <option value="ai">Play vs AI</option>
+        <option value="local">Two players same device</option>
+      </select>
+
+      <label for="boardSize">Board size</label>
+      <input id="boardSize" type="number" min="3" max="30" value="10" />
+
+      <div class="row">
+        <button id="startLocalBtn">Start Game</button>
+        <button id="createOnlineBtn">Create Online Game Link</button>
+      </div>
+
+      <div id="setupMessage" class="message hidden"></div>
+      <div id="roomBox" class="room-box hidden">
+        <strong>Room link</strong>
+        <div id="roomLink"></div>
+        <button id="copySetupLinkBtn">Copy Link</button>
+      </div>
+    </section>
+
+    <section id="gameScreen" class="hidden">
+      <div class="card topbar">
+        <div>
+          <h1>SOS</h1>
+          <p id="playerLabel" class="muted"></p>
+        </div>
+        <div id="firebaseStatus" class="status">Firebase loading...</div>
+      </div>
+
+      <div class="card controls">
+        <div class="letter-row">
+          <button id="chooseS" class="letter active">S</button>
+          <button id="chooseO" class="letter">O</button>
+        </div>
+        <div class="score-row">
+          <div><span>Turn</span><strong id="turnLabel">Player 1</strong></div>
+          <div><span>P1</span><strong id="p1Score">0</strong></div>
+          <div><span>P2</span><strong id="p2Score">0</strong></div>
+        </div>
+        <div id="gameMessage" class="message">Choose S or O, then tap a square.</div>
+        <div id="debugBox" class="debug hidden"></div>
+      </div>
+
+      <div class="card board-card">
+        <div class="board-head">
+          <h2 id="boardTitle">Board</h2>
+          <span id="deviceLabel" class="muted"></span>
+        </div>
+        <div id="board" class="board"></div>
+      </div>
+
+      <button id="backBtn" class="plain">Back to setup</button>
+    </section>
+  </main>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

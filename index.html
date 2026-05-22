@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SOS Game</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <section class="hero">
+      <div>
+        <h1>SOS Game</h1>
+        <p>Play against the computer or play with someone on the same device.</p>
+      </div>
+
+      <div class="controls">
+        <label>
+          Board size
+          <input id="boardSize" type="number" min="3" max="60" value="12" />
+        </label>
+
+        <label>
+          Game mode
+          <select id="gameMode">
+            <option value="ai">Play vs AI</option>
+            <option value="local">Two players same device</option>
+          </select>
+        </label>
+
+        <button id="newGameBtn">New Game</button>
+      </div>
+    </section>
+
+    <section class="layout">
+      <aside class="panel">
+        <h2>Game Info</h2>
+
+        <div class="letter-picker">
+          <button id="chooseS" class="active">S</button>
+          <button id="chooseO">O</button>
+        </div>
+
+        <div class="info-box">
+          <span>Current turn</span>
+          <strong id="currentTurn">Player 1</strong>
+        </div>
+
+        <div class="score-grid">
+          <div>
+            <span>Player 1</span>
+            <strong id="scoreP1">0</strong>
+          </div>
+          <div>
+            <span id="player2Label">AI</span>
+            <strong id="scoreP2">0</strong>
+          </div>
+        </div>
+
+        <div class="leader" id="leaderText">Draw so far</div>
+
+        <p class="message" id="message">
+          Player 1 starts. Choose S or O, then click a square.
+        </p>
+
+        <button id="shareBtn" class="secondary">Create Demo Share Link</button>
+        <p id="shareLink" class="share-link"></p>
+
+        <div class="rules">
+          <h3>Rules</h3>
+          <p>
+            Place either S or O. Any completed SOS scores 1 point.
+            If you score, you get another turn. Otherwise, the turn passes.
+          </p>
+        </div>
+      </aside>
+
+      <section class="board-card">
+        <div class="board-header">
+          <h2 id="boardTitle">Board: 12 × 12</h2>
+          <p>For a large board, scroll inside the board area.</p>
+        </div>
+
+        <div class="board-wrap">
+          <div id="board" class="board"></div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

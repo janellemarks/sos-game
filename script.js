@@ -1,14 +1,4 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-import {
-  getFirestore,
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  onSnapshot,
-  serverTimestamp
-} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-
+/* SOS Game with Firebase online rooms. No build tools needed. */
 const firebaseConfig = {
   apiKey: "AIzaSyDDWZULdUu_7x6PG8ggSWiODMKeHK0ddj8",
   authDomain: "sos-game-78831.firebaseapp.com",
@@ -19,507 +9,261 @@ const firebaseConfig = {
   measurementId: "G-KKS99RC8BL"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+let db = null;
+let unsubscribeRoom = null;
+try {
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+  document.getElementById("firebaseStatus").textContent = "Firebase ready";
+} catch (error) {
+  document.getElementById("firebaseStatus").textContent = "Firebase error";
+  console.error(error);
+}
 
-const DIRECTIONS = [
-  [0, 1],
-  [1, 0],
-  [1, 1],
-  [1, -1]
-];
+const DIRS = [[0,1],[1,0],[1,1],[1,-1]];
+let boardSize = 12;
+let board = createBoard(boardSize);
+let selectedLetter = "S";
+let mode = "ai";
+let currentPlayer = "P1";
+let scores = { P1: 0, P2: 0 };
+let winningCells = new Set();
+let roomId = new URLSearchParams(location.search).get("room") || "";
+let myPlayer = "P1";
+let applyingRemote = false;
 
-const state = {
-  boardSize: 12,
-  board: [],
-  selectedLetter: "S",
-  mode: "ai",
-  currentPlayer: "P1",
-  scores: { P1: 0, P2: 0 },
-  winningCells: new Set(),
-  roomId: null,
-  myPlayer: null,
-  unsubscribeRoom: null,
-  applyingRemoteUpdate: false
+const el = {
+  board: document.getElementById("board"),
+  boardTitle: document.getElementById("boardTitle"),
+  mode: document.getElementById("mode"),
+  boardSize: document.getElementById("boardSize"),
+  chooseS: document.getElementById("chooseS"),
+  chooseO: document.getElementById("chooseO"),
+  newGame: document.getElementById("newGame"),
+  createRoom: document.getElementById("createRoom"),
+  copyLink: document.getElementById("copyLink"),
+  message: document.getElementById("message"),
+  scoreP1: document.getElementById("scoreP1"),
+  scoreP2: document.getElementById("scoreP2"),
+  p2Label: document.getElementById("p2Label"),
+  turnLabel: document.getElementById("turnLabel"),
+  roomBox: document.getElementById("roomBox"),
+  roomLink: document.getElementById("roomLink")
 };
-
-const boardEl = document.getElementById("board");
-const boardSizeInput = document.getElementById("boardSizeInput");
-const modeSelect = document.getElementById("modeSelect");
-const chooseS = document.getElementById("chooseS");
-const chooseO = document.getElementById("chooseO");
-const newGameButton = document.getElementById("newGameButton");
-const createRoomButton = document.getElementById("createRoomButton");
-const copyLinkButton = document.getElementById("copyLinkButton");
-const messageBox = document.getElementById("messageBox");
-const scoreP1 = document.getElementById("scoreP1");
-const scoreP2 = document.getElementById("scoreP2");
-const player2Label = document.getElementById("player2Label");
-const turnLabel = document.getElementById("turnLabel");
-const boardTitle = document.getElementById("boardTitle");
-const shareBox = document.getElementById("shareBox");
-const shareLink = document.getElementById("shareLink");
-const connectionStatus = document.getElementById("connectionStatus");
-const roomInfo = document.getElementById("roomInfo");
 
 function createBoard(size) {
   return Array.from({ length: size }, () => Array.from({ length: size }, () => ""));
 }
+function cloneBoard(b) { return b.map(row => [...row]); }
+function inBounds(r,c,size) { return r >= 0 && r < size && c >= 0 && c < size; }
+function playerLabel(p) { return p === "P1" ? "Player 1" : (mode === "ai" ? "AI" : "Player 2"); }
+function boardIsFull(b) { return b.every(row => row.every(cell => cell)); }
 
-function cloneBoard(board) {
-  return board.map((row) => [...row]);
-}
-
-function inBounds(row, col, size) {
-  return row >= 0 && row < size && col >= 0 && col < size;
-}
-
-function boardIsFull(board) {
-  return board.every((row) => row.every((cell) => cell !== ""));
-}
-
-function countSOSFromMove(board, row, col) {
-  const size = board.length;
+function countSOSFromMove(b, row, col) {
+  const size = b.length;
   let count = 0;
   const lines = [];
-
-  for (const [dr, dc] of DIRECTIONS) {
-    for (let offset = -2; offset <= 0; offset += 1) {
+  for (const [dr, dc] of DIRS) {
+    for (let offset = -2; offset <= 0; offset++) {
       let word = "";
       const cells = [];
-
-      for (let i = 0; i < 3; i += 1) {
+      for (let i = 0; i < 3; i++) {
         const r = row + (offset + i) * dr;
         const c = col + (offset + i) * dc;
-
-        if (!inBounds(r, c, size)) {
-          word = "";
-          break;
-        }
-
-        word += board[r][c];
-        cells.push([r, c]);
+        if (!inBounds(r,c,size)) { word = ""; break; }
+        word += b[r][c];
+        cells.push([r,c]);
       }
-
-      if (word === "SOS") {
-        count += 1;
-        lines.push(cells);
-      }
+      if (word === "SOS") { count++; lines.push(cells); }
     }
   }
-
   return { count, lines };
 }
 
-function rebuildWinningCells() {
-  state.winningCells = new Set();
-
-  for (let row = 0; row < state.board.length; row += 1) {
-    for (let col = 0; col < state.board.length; col += 1) {
-      if (!state.board[row][col]) continue;
-      const result = countSOSFromMove(state.board, row, col);
-      for (const line of result.lines) {
-        for (const [r, c] of line) {
-          state.winningCells.add(`${r}-${c}`);
-        }
-      }
-    }
-  }
-}
-
-function getPlayerLabel(player) {
-  if (player === "P1") return "Player 1";
-  if (state.mode === "ai") return "AI";
-  return "Player 2";
-}
-
-function showMessage(text) {
-  messageBox.textContent = text;
-}
-
 function render() {
-  boardEl.innerHTML = "";
-  boardEl.style.gridTemplateColumns = `repeat(${state.boardSize}, minmax(30px, 1fr))`;
+  el.boardTitle.textContent = `Board: ${boardSize} × ${boardSize}`;
+  el.scoreP1.textContent = scores.P1;
+  el.scoreP2.textContent = scores.P2;
+  el.p2Label.textContent = mode === "ai" ? "AI" : "Player 2";
+  el.turnLabel.textContent = playerLabel(currentPlayer);
+  el.board.style.gridTemplateColumns = `repeat(${boardSize}, 42px)`;
+  el.board.innerHTML = "";
 
-  for (let row = 0; row < state.boardSize; row += 1) {
-    for (let col = 0; col < state.boardSize; col += 1) {
-      const cell = document.createElement("button");
-      cell.className = "cell";
-      cell.textContent = state.board[row][col];
-
-      if (state.winningCells.has(`${row}-${col}`)) {
-        cell.classList.add("win");
-      }
-
-      cell.disabled = Boolean(state.board[row][col]) || !canCurrentUserPlay();
-      cell.addEventListener("click", () => handleCellClick(row, col));
-      boardEl.appendChild(cell);
+  for (let r = 0; r < boardSize; r++) {
+    for (let c = 0; c < boardSize; c++) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "cell";
+      btn.textContent = board[r][c];
+      if (board[r][c]) btn.classList.add("filled");
+      if (winningCells.has(`${r}-${c}`)) btn.classList.add("win");
+      btn.addEventListener("click", () => handleCellClick(r, c));
+      el.board.appendChild(btn);
     }
   }
-
-  scoreP1.textContent = state.scores.P1;
-  scoreP2.textContent = state.scores.P2;
-  player2Label.textContent = state.mode === "ai" ? "AI" : "Player 2";
-  turnLabel.textContent = getPlayerLabel(state.currentPlayer);
-  boardTitle.textContent = `Board: ${state.boardSize} × ${state.boardSize}`;
-
-  chooseS.classList.toggle("active", state.selectedLetter === "S");
-  chooseO.classList.toggle("active", state.selectedLetter === "O");
-
-  modeSelect.value = state.mode;
-  boardSizeInput.value = state.boardSize;
-
-  if (state.roomId) {
-    const link = `${window.location.origin}${window.location.pathname}?room=${state.roomId}`;
-    shareBox.hidden = false;
-    shareLink.href = link;
-    shareLink.textContent = link;
-    connectionStatus.textContent = "Online room connected";
-    roomInfo.textContent = `Room: ${state.roomId} | You are ${state.myPlayer === "P1" ? "Player 1" : "Player 2"}`;
-  } else {
-    shareBox.hidden = true;
-    connectionStatus.textContent = "Firebase ready";
-    roomInfo.textContent = "No room joined yet";
-  }
 }
 
-function canCurrentUserPlay() {
-  if (state.mode === "ai" && state.currentPlayer === "P2") return false;
-  if (state.mode === "online" && state.myPlayer !== state.currentPlayer) return false;
-  return true;
+function setMessage(text) { el.message.textContent = text; }
+function addWinningLines(lines) {
+  for (const line of lines) for (const [r,c] of line) winningCells.add(`${r}-${c}`);
 }
 
-function startNewGame(size = state.boardSize, mode = state.mode) {
-  state.boardSize = size;
-  state.board = createBoard(size);
-  state.mode = mode;
-  state.currentPlayer = "P1";
-  state.scores = { P1: 0, P2: 0 };
-  state.winningCells = new Set();
-
-  showMessage("New game started. Player 1 begins.");
-  render();
+async function saveRoom() {
+  if (!db || !roomId || mode !== "online" || applyingRemote) return;
+  await db.collection("games").doc(roomId).set({
+    boardSize, board, currentPlayer, scores,
+    winningCells: Array.from(winningCells),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
 }
 
-function applyMove(board, scores, row, col, letter, player) {
-  if (!inBounds(row, col, board.length)) return null;
-  if (board[row][col]) return null;
-
-  const nextBoard = cloneBoard(board);
-  nextBoard[row][col] = letter;
-
-  const result = countSOSFromMove(nextBoard, row, col);
-  const nextScores = { ...scores };
-
+function applyMove(row, col, letter, player) {
+  if (board[row][col]) return false;
+  board[row][col] = letter;
+  const result = countSOSFromMove(board, row, col);
   if (result.count > 0) {
-    nextScores[player] += result.count;
+    scores[player] += result.count;
+    addWinningLines(result.lines);
+    setMessage(`${playerLabel(player)} made ${result.count} SOS and gets another turn.`);
+  } else {
+    currentPlayer = player === "P1" ? "P2" : "P1";
+    setMessage(`${playerLabel(currentPlayer)}'s turn.`);
   }
-
-  return {
-    nextBoard,
-    nextScores,
-    madeSOS: result.count > 0,
-    scoreCount: result.count
-  };
+  if (boardIsFull(board)) setMessage("Game over. The board is full.");
+  render();
+  saveRoom();
+  return result.count > 0;
 }
 
-async function handleCellClick(row, col) {
-  if (!canCurrentUserPlay()) {
-    showMessage("It is not your turn.");
+function handleCellClick(row, col) {
+  if (board[row][col]) return;
+  if (mode === "online" && currentPlayer !== myPlayer) {
+    setMessage(`Wait. It is ${playerLabel(currentPlayer)}'s turn.`);
     return;
   }
+  if (mode === "ai" && currentPlayer === "P2") return;
 
-  const result = applyMove(state.board, state.scores, row, col, state.selectedLetter, state.currentPlayer);
-  if (!result) return;
-
-  let nextPlayer = state.currentPlayer;
-  let message = "";
-
-  if (result.madeSOS) {
-    message = `${getPlayerLabel(state.currentPlayer)} made ${result.scoreCount} SOS and gets another turn.`;
-  } else {
-    nextPlayer = state.currentPlayer === "P1" ? "P2" : "P1";
-    message = `${nextPlayer === "P1" ? "Player 1" : state.mode === "ai" ? "AI" : "Player 2"}'s turn.`;
-  }
-
-  state.board = result.nextBoard;
-  state.scores = result.nextScores;
-  state.currentPlayer = nextPlayer;
-  rebuildWinningCells();
-
-  if (boardIsFull(state.board)) {
-    message = "Game over. The board is full.";
-  }
-
-  showMessage(message);
-  render();
-
-  if (state.mode === "online") {
-    await saveOnlineState(message);
-  }
-
-  if (state.mode === "ai" && state.currentPlayer === "P2" && !boardIsFull(state.board)) {
-    window.setTimeout(makeAIMove, 350);
+  const scored = applyMove(row, col, selectedLetter, currentPlayer);
+  if (mode === "ai" && currentPlayer === "P2" && !boardIsFull(board)) {
+    setTimeout(makeAIMove, 300);
   }
 }
 
-function findBestAIMove(board) {
-  const emptyCells = [];
-  let bestScoringMove = null;
-
-  for (let row = 0; row < board.length; row += 1) {
-    for (let col = 0; col < board.length; col += 1) {
-      if (board[row][col]) continue;
-      emptyCells.push([row, col]);
-
-      for (const letter of ["S", "O"]) {
-        const testBoard = cloneBoard(board);
-        testBoard[row][col] = letter;
-        const score = countSOSFromMove(testBoard, row, col).count;
-
-        if (score > 0 && (!bestScoringMove || score > bestScoringMove.score)) {
-          bestScoringMove = { row, col, letter, score };
-        }
+function findBestAIMove() {
+  const empty = [];
+  let best = null;
+  for (let r = 0; r < boardSize; r++) {
+    for (let c = 0; c < boardSize; c++) {
+      if (board[r][c]) continue;
+      empty.push([r,c]);
+      for (const letter of ["S","O"]) {
+        const test = cloneBoard(board);
+        test[r][c] = letter;
+        const score = countSOSFromMove(test, r, c).count;
+        if (score > 0 && (!best || score > best.score)) best = { r, c, letter, score };
       }
     }
   }
-
-  if (bestScoringMove) return bestScoringMove;
-
-  for (const [row, col] of emptyCells) {
-    for (const letter of ["S", "O"]) {
-      const testBoard = cloneBoard(board);
-      testBoard[row][col] = letter;
-      const score = countSOSFromMove(testBoard, row, col).count;
-      if (score > 0) return { row, col, letter, score: 0 };
+  if (best) return best;
+  for (const [r,c] of empty) {
+    for (const letter of ["S","O"]) {
+      const test = cloneBoard(board);
+      test[r][c] = letter;
+      if (countSOSFromMove(test, r, c).count > 0) return { r, c, letter, score: 0 };
     }
   }
-
-  if (emptyCells.length === 0) return null;
-  const [row, col] = emptyCells[Math.floor(Math.random() * emptyCells.length)];
-  return { row, col, letter: Math.random() > 0.5 ? "S" : "O", score: 0 };
+  if (!empty.length) return null;
+  const [r,c] = empty[Math.floor(Math.random() * empty.length)];
+  return { r, c, letter: Math.random() > 0.5 ? "S" : "O", score: 0 };
 }
 
 function makeAIMove() {
-  const aiMove = findBestAIMove(state.board);
-  if (!aiMove) return;
-
-  const result = applyMove(state.board, state.scores, aiMove.row, aiMove.col, aiMove.letter, "P2");
-  if (!result) return;
-
-  state.board = result.nextBoard;
-  state.scores = result.nextScores;
-
-  if (result.madeSOS) {
-    state.currentPlayer = "P2";
-    showMessage(`AI placed ${aiMove.letter}, made ${result.scoreCount} SOS, and gets another turn.`);
-  } else {
-    state.currentPlayer = "P1";
-    showMessage(`AI placed ${aiMove.letter}. Player 1's turn.`);
-  }
-
-  if (boardIsFull(state.board)) {
-    state.currentPlayer = "P1";
-    showMessage("Game over. The board is full.");
-  }
-
-  rebuildWinningCells();
-  render();
-
-  if (state.currentPlayer === "P2" && !boardIsFull(state.board)) {
-    window.setTimeout(makeAIMove, 350);
-  }
+  const move = findBestAIMove();
+  if (!move) return;
+  applyMove(move.r, move.c, move.letter, "P2");
+  if (currentPlayer === "P2" && !boardIsFull(board)) setTimeout(makeAIMove, 300);
 }
 
-function createRoomId() {
-  return Math.random().toString(36).slice(2, 8);
+function newGame(size = Number(el.boardSize.value) || 12) {
+  boardSize = Math.max(3, Math.min(60, Math.floor(size)));
+  el.boardSize.value = boardSize;
+  board = createBoard(boardSize);
+  scores = { P1: 0, P2: 0 };
+  currentPlayer = "P1";
+  winningCells = new Set();
+  setMessage("Choose S or O, then click a square.");
+  render();
+  saveRoom();
 }
 
 async function createOnlineRoom() {
-  const size = getSafeBoardSize();
-  const roomId = createRoomId();
-
-  if (state.unsubscribeRoom) state.unsubscribeRoom();
-
-  state.roomId = roomId;
-  state.myPlayer = "P1";
-  state.mode = "online";
-  startNewGame(size, "online");
-
-  const roomRef = doc(db, "games", roomId);
-  await setDoc(roomRef, {
-    boardSize: state.boardSize,
-    board: state.board,
-    currentPlayer: state.currentPlayer,
-    scores: state.scores,
-    message: "Online room created. Send the link to Player 2.",
-    player1Joined: true,
-    player2Joined: false,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
-  });
-
-  const link = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
-  window.history.replaceState({}, "", `?room=${roomId}`);
-
-  if (navigator.clipboard) {
-    await navigator.clipboard.writeText(link).catch(() => undefined);
-  }
-
-  showMessage("Online room created. Link copied if your browser allowed it. Send it to Player 2.");
-  listenToRoom(roomId);
-  render();
+  if (!db) { setMessage("Firebase is not ready yet. Refresh and try again."); return; }
+  mode = "online";
+  el.mode.value = "online";
+  roomId = Math.random().toString(36).slice(2, 9);
+  myPlayer = "P1";
+  newGame(Number(el.boardSize.value) || 12);
+  const link = `${location.origin}${location.pathname}?room=${roomId}`;
+  el.roomBox.hidden = false;
+  el.roomLink.textContent = link;
+  await saveRoom();
+  listenToRoom();
+  try { await navigator.clipboard.writeText(link); } catch (e) {}
+  setMessage("Online room created. Link copied. Send it to your friend.");
 }
 
-async function joinOnlineRoom(roomId) {
-  const roomRef = doc(db, "games", roomId);
-  const snapshot = await getDoc(roomRef);
+async function listenToRoom() {
+  if (!db || !roomId) return;
+  if (unsubscribeRoom) unsubscribeRoom();
+  mode = "online";
+  el.mode.value = "online";
+  const link = `${location.origin}${location.pathname}?room=${roomId}`;
+  el.roomBox.hidden = false;
+  el.roomLink.textContent = link;
 
-  if (!snapshot.exists()) {
-    showMessage("This room does not exist. Ask Player 1 to create a new link.");
-    return;
-  }
-
-  const data = snapshot.data();
-
-  if (state.unsubscribeRoom) state.unsubscribeRoom();
-
-  state.roomId = roomId;
-  state.myPlayer = data.player2Joined ? "P1" : "P2";
-  state.mode = "online";
-
-  if (!data.player2Joined) {
-    await updateDoc(roomRef, {
-      player2Joined: true,
-      updatedAt: serverTimestamp()
-    });
-  }
-
-  applyRemoteData(data);
-  showMessage(state.myPlayer === "P2" ? "You joined as Player 2. Wait for your turn." : "You rejoined as Player 1.");
-  listenToRoom(roomId);
-  render();
-}
-
-function applyRemoteData(data) {
-  state.applyingRemoteUpdate = true;
-  state.boardSize = data.boardSize;
-  state.board = data.board;
-  state.currentPlayer = data.currentPlayer;
-  state.scores = data.scores || { P1: 0, P2: 0 };
-  rebuildWinningCells();
-
-  if (data.message) {
-    showMessage(data.message);
-  }
-
-  state.applyingRemoteUpdate = false;
-}
-
-function listenToRoom(roomId) {
-  const roomRef = doc(db, "games", roomId);
-
-  state.unsubscribeRoom = onSnapshot(roomRef, (snapshot) => {
-    if (!snapshot.exists()) return;
-
-    const data = snapshot.data();
-    applyRemoteData(data);
+  unsubscribeRoom = db.collection("games").doc(roomId).onSnapshot(async doc => {
+    if (!doc.exists) {
+      myPlayer = "P2";
+      await saveRoom();
+      return;
+    }
+    applyingRemote = true;
+    const data = doc.data();
+    boardSize = data.boardSize || boardSize;
+    board = data.board || board;
+    currentPlayer = data.currentPlayer || currentPlayer;
+    scores = data.scores || scores;
+    winningCells = new Set(data.winningCells || []);
+    el.boardSize.value = boardSize;
     render();
+    applyingRemote = false;
+  }, error => {
+    console.error(error);
+    setMessage("Could not load online room. Check Firestore rules.");
   });
+
+  setMessage(myPlayer === "P1" ? "You are Player 1. Share this link." : "You joined as Player 2.");
 }
 
-async function saveOnlineState(message) {
-  if (!state.roomId) return;
+el.chooseS.addEventListener("click", () => { selectedLetter = "S"; el.chooseS.classList.add("selected"); el.chooseO.classList.remove("selected"); });
+el.chooseO.addEventListener("click", () => { selectedLetter = "O"; el.chooseO.classList.add("selected"); el.chooseS.classList.remove("selected"); });
+el.newGame.addEventListener("click", () => newGame());
+el.createRoom.addEventListener("click", createOnlineRoom);
+el.copyLink.addEventListener("click", async () => {
+  const link = roomId ? `${location.origin}${location.pathname}?room=${roomId}` : location.href;
+  try { await navigator.clipboard.writeText(link); setMessage("Link copied."); } catch (e) { setMessage(link); }
+});
+el.mode.addEventListener("change", () => {
+  mode = el.mode.value;
+  if (unsubscribeRoom) { unsubscribeRoom(); unsubscribeRoom = null; }
+  if (mode !== "online") roomId = "";
+  el.roomBox.hidden = mode !== "online" || !roomId;
+  newGame();
+});
 
-  const roomRef = doc(db, "games", state.roomId);
-  await updateDoc(roomRef, {
-    boardSize: state.boardSize,
-    board: state.board,
-    currentPlayer: state.currentPlayer,
-    scores: state.scores,
-    message,
-    updatedAt: serverTimestamp()
-  });
-}
-
-function getSafeBoardSize() {
-  const parsed = Number(boardSizeInput.value);
-  if (!Number.isFinite(parsed)) return 12;
-  return Math.min(Math.max(Math.floor(parsed), 3), 30);
-}
-
-function leaveOnlineRoomIfNeeded() {
-  if (state.unsubscribeRoom) {
-    state.unsubscribeRoom();
-    state.unsubscribeRoom = null;
-  }
-
-  state.roomId = null;
-  state.myPlayer = null;
-
-  if (window.location.search.includes("room=")) {
-    window.history.replaceState({}, "", window.location.pathname);
-  }
-}
-
-chooseS.addEventListener("click", () => {
-  state.selectedLetter = "S";
+if (roomId) {
+  myPlayer = "P2";
+  listenToRoom();
+} else {
   render();
-});
-
-chooseO.addEventListener("click", () => {
-  state.selectedLetter = "O";
-  render();
-});
-
-modeSelect.addEventListener("change", () => {
-  const nextMode = modeSelect.value;
-  leaveOnlineRoomIfNeeded();
-  state.mode = nextMode;
-  startNewGame(getSafeBoardSize(), nextMode);
-});
-
-newGameButton.addEventListener("click", async () => {
-  const size = getSafeBoardSize();
-
-  if (state.mode === "online" && state.roomId && state.myPlayer === "P1") {
-    startNewGame(size, "online");
-    await saveOnlineState("Player 1 started a new online game.");
-    return;
-  }
-
-  if (state.mode === "online" && state.myPlayer !== "P1") {
-    showMessage("Only Player 1 can restart an online room.");
-    return;
-  }
-
-  startNewGame(size, state.mode);
-});
-
-createRoomButton.addEventListener("click", createOnlineRoom);
-
-copyLinkButton.addEventListener("click", async () => {
-  const link = state.roomId
-    ? `${window.location.origin}${window.location.pathname}?room=${state.roomId}`
-    : window.location.href;
-
-  if (navigator.clipboard) {
-    await navigator.clipboard.writeText(link).catch(() => undefined);
-    showMessage("Link copied.");
-  } else {
-    showMessage("Copy the link from your browser address bar.");
-  }
-});
-
-window.addEventListener("load", async () => {
-  state.board = createBoard(state.boardSize);
-
-  const params = new URLSearchParams(window.location.search);
-  const roomId = params.get("room");
-
-  if (roomId) {
-    await joinOnlineRoom(roomId);
-  } else {
-    startNewGame(12, "ai");
-  }
-});
+}

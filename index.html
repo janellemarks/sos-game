@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SOS Game</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <section id="setupScreen" class="screen setup-screen">
+      <div class="setup-card card">
+        <h1>SOS Game</h1>
+        <p class="muted">Create a game, choose the board size, and share the link.</p>
+
+        <label for="modeSelect">Game mode</label>
+        <select id="modeSelect">
+          <option value="ai">Play vs AI</option>
+          <option value="local">Local players on this device</option>
+          <option value="online">Online shared link</option>
+        </select>
+
+        <label for="playerCountInput">Number of players</label>
+        <select id="playerCountInput">
+          <option value="2">2 players</option>
+          <option value="3">3 players</option>
+          <option value="4">4 players</option>
+        </select>
+
+        <label for="boardSizeInput">Board size</label>
+        <input id="boardSizeInput" type="number" min="3" max="40" value="10" />
+
+        <button id="startGameBtn" class="primary big-btn">Start Game</button>
+        <button id="createOnlineBtn" class="secondary big-btn">Create online game link</button>
+
+        <div id="setupMessage" class="message hidden"></div>
+        <div id="firebaseStatus" class="firebase-status">Firebase ready</div>
+      </div>
+    </section>
+
+    <section id="gameScreen" class="screen game-screen hidden">
+      <header class="game-top card">
+        <div class="brand">
+          <h1>SOS</h1>
+          <div id="roomStatus" class="small-muted">Choose S or O, then play.</div>
+        </div>
+
+        <div class="letter-picker" aria-label="Choose letter">
+          <button id="letterS" class="selected">S</button>
+          <button id="letterO">O</button>
+        </div>
+
+        <div id="scoreBar" class="score-bar"></div>
+
+        <div id="ownerActions" class="owner-actions">
+          <button id="copyLinkBtn" class="secondary small-btn">Copy link</button>
+          <button id="newGameBtn" class="secondary small-btn">New game</button>
+        </div>
+      </header>
+
+      <section class="board-card card">
+        <div class="board-header">
+          <h2 id="boardTitle">Board: 10 × 10</h2>
+          <p id="playerLabel" class="muted">This device</p>
+        </div>
+        <div id="message" class="message">Choose S or O, then click a square.</div>
+        <div id="debugBox" class="debug-box hidden"></div>
+        <div id="roomBox" class="room-box hidden">
+          <strong>Room link</strong>
+          <span id="roomLink"></span>
+        </div>
+        <div id="boardWrap" class="board-wrap">
+          <div id="board" class="board"></div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
